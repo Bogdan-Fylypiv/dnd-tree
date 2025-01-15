@@ -107,30 +107,32 @@ const App: React.FC = () => {
     sourceId: string,
     destinationParentId: string | null,
     destinationIndex: number,
-    addAsChild: boolean = false // Determines if the node should be added as a child
+    makeSiblingOfParent: boolean = false
   ): TreeNode[] => {
     let movedNode: TreeNode | null = null;
   
-    // Step 1: Remove the node from its original position
-    const removeNode = (nodes: TreeNode[]): TreeNode[] => {
-      return nodes
+    const removeNode = (nodes: TreeNode[]): TreeNode[] =>
+      nodes
         .filter((node) => {
           if (node.id === sourceId) {
-            movedNode = { ...node }; // Store the node being moved
-            return false; // Remove it from the array
+            movedNode = { ...node };
+            return false;
           }
           return true;
         })
-        .map((node) => ({
-          ...node,
-          children: removeNode(node.children),
-        }));
-    };
+        .map((node) => ({ ...node, children: removeNode(node.children) }));
   
-    // Step 2: Add the node to its new position
     const addNode = (nodes: TreeNode[]): TreeNode[] => {
+      if (makeSiblingOfParent && movedNode) {
+        const parentIndex = nodes.findIndex((node) => node.id === destinationParentId);
+        if (parentIndex !== -1) {
+          const updatedNodes = [...nodes];
+          updatedNodes.splice(parentIndex + 1, 0, movedNode);
+          return updatedNodes;
+        }
+      }
+  
       if (!destinationParentId) {
-        // Adding to the root level
         const updatedNodes = [...nodes];
         if (movedNode) {
           updatedNodes.splice(destinationIndex, 0, movedNode);
@@ -140,28 +142,19 @@ const App: React.FC = () => {
   
       return nodes.map((node) => {
         if (node.id === destinationParentId && movedNode) {
-          if (addAsChild) {
-            // Add as a child of the destination parent
-            const updatedChildren = [...node.children];
-            updatedChildren.splice(destinationIndex, 0, movedNode);
-            return { ...node, children: updatedChildren };
-          } else {
-            // Add as a sibling
-            const updatedSiblings = [...nodes];
-            updatedSiblings.splice(destinationIndex, 0, movedNode);
-            return node;
-          }
+          const updatedChildren = [...node.children];
+          updatedChildren.splice(destinationIndex, 0, movedNode);
+          return { ...node, children: updatedChildren };
         }
         return { ...node, children: addNode(node.children) };
       });
     };
   
-    // Step 3: Remove and then add the node
     const treeWithoutSource = removeNode(tree);
   
     if (!movedNode) {
       console.error("Error: Unable to locate the node to move");
-      return tree; // Return the original tree if something goes wrong
+      return tree;
     }
   
     return addNode(treeWithoutSource);
@@ -169,11 +162,9 @@ const App: React.FC = () => {
   
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
-  
-    if (!destination) return; // Do nothing if dropped outside a valid drop area
+    if (!destination) return;
   
     const flatTree = flattenTree(tree);
-  
     const sourceNodeData = flatTree[source.index];
     const destinationNodeData = flatTree[destination.index];
   
@@ -182,15 +173,14 @@ const App: React.FC = () => {
       return;
     }
   
-    // Determine whether to add as a child or sibling
-    const destinationParentId =
-      destinationNodeData.node.expanded && destinationNodeData.node.children.length > 0
-        ? destinationNodeData.node.id
-        : destinationNodeData.parentId;
+    const sourceParentId = sourceNodeData.parentId;
+    const destinationParentId = destinationNodeData.parentId;
   
-    const addAsChild = destinationNodeData.node.expanded;
-  
-    // Determine the destination index
+    const makeSiblingOfParent =
+    sourceParentId && destinationNodeData.node.id === sourceParentId
+      ? true
+      : undefined; // Ensure it's either true or undefined
+        
     const destinationSiblings = flatTree.filter(
       (item) => item.parentId === destinationParentId
     );
@@ -198,13 +188,13 @@ const App: React.FC = () => {
       (item) => item.node.id === destinationNodeData.node.id
     );
   
-    // Update the tree
+    
     const updatedTree = moveNode(
       tree,
       sourceNodeData.node.id,
-      destinationParentId,
-      destinationIndex + (addAsChild ? 0 : 1), // Adjust index for siblings
-      addAsChild
+      makeSiblingOfParent ? null : destinationParentId,
+      destinationIndex + (makeSiblingOfParent ? 0 : 1),
+      makeSiblingOfParent
     );
   
     setTree(updatedTree);
