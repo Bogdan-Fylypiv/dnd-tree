@@ -69,7 +69,7 @@ const App: React.FC = () => {
   const [newNodeName, setNewNodeName] = useState("");
   const [selectedLocation, setSelectedLocation] = useState<string | null>("root");
   const [selectedColor, setSelectedColor] = useState<string>("blue");
-  const [isSheetOpen, setIsSheetOpen] = useState(false); // Initially false to keep the sheet closed
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const colors = [
     "red",
@@ -87,16 +87,21 @@ const App: React.FC = () => {
   ];
 
   const flattenTree = (
-    nodes: TreeNode[],
+    nodes: TreeNode[] = [], // Default to an empty array if undefined
     parentId: string | null = null,
     depth = 0
   ): { node: TreeNode; parentId: string | null; depth: number }[] => {
-    return nodes.flatMap((node) => [
-      { node, parentId, depth },
-      ...(node.expanded ? flattenTree(node.children, node.id, depth + 1) : []),
-    ]);
+    return nodes.flatMap((node) => {
+      if (!node) return []; // Ensure node is valid before processing
+      return [
+        { node, parentId, depth },
+        ...(node.expanded && Array.isArray(node.children)
+          ? flattenTree(node.children, node.id, depth + 1)
+          : []),
+      ];
+    });
   };
-
+  
   const moveNode = (
     tree: TreeNode[],
     sourceId: string,
@@ -104,28 +109,37 @@ const App: React.FC = () => {
     destinationIndex: number
   ): TreeNode[] => {
     let movedNode: TreeNode | null = null;
-
+  
+    // Step 1: Remove the node from its original position
     const removeNode = (nodes: TreeNode[]): TreeNode[] => {
       return nodes
         .filter((node) => {
           if (node.id === sourceId) {
-            movedNode = { ...node };
-            return false;
+            movedNode = { ...node }; // Store the node being moved
+            return false; // Remove it from the array
           }
           return true;
         })
-        .map((node) => ({ ...node, children: removeNode(node.children) }));
+        .map((node) => ({
+          ...node,
+          children: removeNode(node.children),
+        }));
     };
-
+  
+    // Step 2: Add the node to its new position
     const addNode = (nodes: TreeNode[]): TreeNode[] => {
       if (!destinationParentId) {
+        // Adding to the root level
         const updatedNodes = [...nodes];
-        updatedNodes.splice(destinationIndex, 0, movedNode!);
+        if (movedNode) {
+          updatedNodes.splice(destinationIndex, 0, movedNode);
+        }
         return updatedNodes;
       }
-
+  
       return nodes.map((node) => {
         if (node.id === destinationParentId && movedNode) {
+          // Add as a child of the destination parent
           const updatedChildren = [...node.children];
           updatedChildren.splice(destinationIndex, 0, movedNode);
           return { ...node, children: updatedChildren };
@@ -133,37 +147,53 @@ const App: React.FC = () => {
         return { ...node, children: addNode(node.children) };
       });
     };
-
+  
+    // Step 3: Remove and then add the node
     const treeWithoutSource = removeNode(tree);
+  
+    if (!movedNode) {
+      console.error("Error: Unable to locate the node to move");
+      return tree; // Return the original tree if something goes wrong
+    }
+  
     return addNode(treeWithoutSource);
   };
-
+  
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
-
-    if (!destination) return;
-
+  
+    if (!destination) return; // Do nothing if dropped outside a valid drop area
+  
     const flatTree = flattenTree(tree);
-
+  
     const sourceNodeData = flatTree[source.index];
     const destinationNodeData = flatTree[destination.index];
-
-    const sameParent =
-      sourceNodeData.parentId === destinationNodeData.parentId;
-
-    const destinationIndex = sameParent
-      ? flatTree
-          .filter((item) => item.parentId === destinationNodeData.parentId)
-          .findIndex((item) => item.node.id === destinationNodeData.node.id)
-      : destination.index;
-
+  
+    if (!sourceNodeData) {
+      console.error("Error: Missing source node data");
+      return;
+    }
+  
+    // Determine the parent of the destination
+    const destinationParentId =
+      destinationNodeData?.parentId ?? null;
+  
+    // Determine the destination index within its parent
+    const destinationSiblings = flatTree.filter(
+      (item) => item.parentId === destinationParentId
+    );
+    const destinationIndex = destinationSiblings.findIndex(
+      (item) => item.node.id === destinationNodeData?.node.id
+    );
+  
+    // Update the tree
     const updatedTree = moveNode(
       tree,
       sourceNodeData.node.id,
-      destinationNodeData.parentId,
+      destinationParentId,
       destinationIndex
     );
-
+  
     setTree(updatedTree);
   };
 
@@ -205,24 +235,9 @@ const App: React.FC = () => {
     setNewNodeName(""); // Reset the node name input field
   };
 
-  const colorClasses: { [key: string]: string } = {
-    red: "bg-red-500",
-    blue: "bg-blue-500",
-    green: "bg-green-500",
-    yellow: "bg-yellow-500",
-    purple: "bg-purple-500",
-    pink: "bg-pink-500",
-    indigo: "bg-indigo-500",
-    teal: "bg-teal-500",
-    orange: "bg-orange-500",
-    cyan: "bg-cyan-500",
-    lime: "bg-lime-500",
-    gray: "bg-gray-500",
-  };
-  
   const renderTree = () => {
     const flatTree = flattenTree(tree);
-  
+
     return flatTree.map(({ node, depth }, index) => (
       <Draggable key={node.id} draggableId={node.id} index={index}>
         {(provided) => (
@@ -249,9 +264,7 @@ const App: React.FC = () => {
                   </Button>
                 )}
                 <div
-                  className={`w-3 h-3 rounded-full ${
-                    colorClasses[node.color || "gray"]
-                  }`}
+                  className={`w-3 h-3 rounded-full bg-${node.color || "gray"}-500`}
                 ></div>
                 <CardTitle>{node.title}</CardTitle>
               </CardHeader>
