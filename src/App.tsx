@@ -106,7 +106,8 @@ const App: React.FC = () => {
     tree: TreeNode[],
     sourceId: string,
     destinationParentId: string | null,
-    destinationIndex: number
+    destinationIndex: number,
+    addAsChild: boolean = false // Determines if the node should be added as a child
   ): TreeNode[] => {
     let movedNode: TreeNode | null = null;
   
@@ -139,10 +140,17 @@ const App: React.FC = () => {
   
       return nodes.map((node) => {
         if (node.id === destinationParentId && movedNode) {
-          // Add as a child of the destination parent
-          const updatedChildren = [...node.children];
-          updatedChildren.splice(destinationIndex, 0, movedNode);
-          return { ...node, children: updatedChildren };
+          if (addAsChild) {
+            // Add as a child of the destination parent
+            const updatedChildren = [...node.children];
+            updatedChildren.splice(destinationIndex, 0, movedNode);
+            return { ...node, children: updatedChildren };
+          } else {
+            // Add as a sibling
+            const updatedSiblings = [...nodes];
+            updatedSiblings.splice(destinationIndex, 0, movedNode);
+            return node;
+          }
         }
         return { ...node, children: addNode(node.children) };
       });
@@ -169,21 +177,25 @@ const App: React.FC = () => {
     const sourceNodeData = flatTree[source.index];
     const destinationNodeData = flatTree[destination.index];
   
-    if (!sourceNodeData) {
-      console.error("Error: Missing source node data");
+    if (!sourceNodeData || !destinationNodeData) {
+      console.error("Error: Missing source or destination node data");
       return;
     }
   
-    // Determine the parent of the destination
+    // Determine whether to add as a child or sibling
     const destinationParentId =
-      destinationNodeData?.parentId ?? null;
+      destinationNodeData.node.expanded && destinationNodeData.node.children.length > 0
+        ? destinationNodeData.node.id
+        : destinationNodeData.parentId;
   
-    // Determine the destination index within its parent
+    const addAsChild = destinationNodeData.node.expanded;
+  
+    // Determine the destination index
     const destinationSiblings = flatTree.filter(
       (item) => item.parentId === destinationParentId
     );
     const destinationIndex = destinationSiblings.findIndex(
-      (item) => item.node.id === destinationNodeData?.node.id
+      (item) => item.node.id === destinationNodeData.node.id
     );
   
     // Update the tree
@@ -191,7 +203,8 @@ const App: React.FC = () => {
       tree,
       sourceNodeData.node.id,
       destinationParentId,
-      destinationIndex
+      destinationIndex + (addAsChild ? 0 : 1), // Adjust index for siblings
+      addAsChild
     );
   
     setTree(updatedTree);
