@@ -205,9 +205,24 @@ const App: React.FC = () => {
     setNewNodeName(""); // Reset the node name input field
   };
 
+  const colorClasses: { [key: string]: string } = {
+    red: "bg-red-500",
+    blue: "bg-blue-500",
+    green: "bg-green-500",
+    yellow: "bg-yellow-500",
+    purple: "bg-purple-500",
+    pink: "bg-pink-500",
+    indigo: "bg-indigo-500",
+    teal: "bg-teal-500",
+    orange: "bg-orange-500",
+    cyan: "bg-cyan-500",
+    lime: "bg-lime-500",
+    gray: "bg-gray-500",
+  };
+  
   const renderTree = () => {
     const flatTree = flattenTree(tree);
-
+  
     return flatTree.map(({ node, depth }, index) => (
       <Draggable key={node.id} draggableId={node.id} index={index}>
         {(provided) => (
@@ -234,7 +249,9 @@ const App: React.FC = () => {
                   </Button>
                 )}
                 <div
-                  className={`w-3 h-3 rounded-full bg-${node.color || "gray"}-500`}
+                  className={`w-3 h-3 rounded-full ${
+                    colorClasses[node.color || "gray"]
+                  }`}
                 ></div>
                 <CardTitle>{node.title}</CardTitle>
               </CardHeader>
