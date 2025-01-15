@@ -106,6 +106,9 @@ const App: React.FC = () => {
   const [currentNode, setCurrentNode] = useState<TreeNode | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<number>(0);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editedNodeName, setEditedNodeName] = useState<string>("");
+  const [editedNodeColor, setEditedNodeColor] = useState<string>("blue");
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -256,6 +259,27 @@ const App: React.FC = () => {
     setNewNodeName(""); // Clear input
   };
 
+  const openEditDialog = (node: TreeNode) => {
+    setCurrentNode(node);
+    setEditedNodeName(node.title);
+    setEditedNodeColor(node.color || "blue");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateNode = () => {
+    if (!currentNode) return;
+  
+    const updateNode = (nodes: TreeNode[]): TreeNode[] =>
+      nodes.map((node) =>
+        node.id === currentNode.id
+          ? { ...node, title: editedNodeName, color: editedNodeColor }
+          : { ...node, children: updateNode(node.children) }
+      );
+  
+    setTree(updateNode(tree));
+    setIsEditDialogOpen(false);
+  };
+
   const removeNode = (nodeId: string) => {
     const deleteNode = (nodes: TreeNode[]): TreeNode[] =>
       nodes
@@ -324,6 +348,14 @@ const App: React.FC = () => {
                       }}
                     >
                       Move
+                    </DropdownMenu.Item>
+
+                    {/* Edit Node Option */}
+                    <DropdownMenu.Item
+                      className="p-2 cursor-pointer hover:bg-gray-700 rounded"
+                      onClick={() => openEditDialog(node)}
+                    >
+                      Edit
                     </DropdownMenu.Item>
 
                     {/* Remove Node Option */}
@@ -436,6 +468,67 @@ const App: React.FC = () => {
     </div>
   )}
 
+{/* Edit Dialog */}
+{isEditDialogOpen && currentNode && (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onClick={() => setIsEditDialogOpen(false)} // Close dialog on backdrop click
+      >
+        <div
+          className="bg-gray-800 text-white p-6 rounded shadow-lg w-96"
+          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
+        >
+          <h2 className="text-lg font-bold mb-4">Edit Node</h2>
+
+          {/* Edit Node Name */}
+          <div className="mb-4">
+            <label className="block font-medium mb-2">Node Name</label>
+            <input
+              type="text"
+              value={editedNodeName}
+              onChange={(e) => setEditedNodeName(e.target.value)}
+              placeholder="Enter node name"
+              className="mt-2 p-2 border rounded w-full bg-white text-black"
+            />
+          </div>
+
+          {/* Edit Node Color */}
+          <div className="mb-4">
+            <label className="block font-medium mb-2">Select Node Color</label>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              {colors.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setEditedNodeColor(color)}
+                  className={`p-2 rounded ${colorClassMap[color]} text-white ${
+                    editedNodeColor === color ? "ring-2 ring-offset-2 ring-gray-800" : ""
+                  }`}
+                >
+                  {color.charAt(0).toUpperCase() + color.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dialog Buttons */}
+          <div className="flex justify-end gap-4">
+            <button
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+              onClick={handleUpdateNode}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    
     {/* Drag and Drop Context */}
     <DragDropContext onDragEnd={handleDragEnd}>
       <Droppable droppableId="tree" type="TREE">
