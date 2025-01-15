@@ -336,36 +336,39 @@ const App: React.FC = () => {
                     </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content
-                    className="bg-gray-800 text-white rounded shadow-lg p-2"
+                    className="bg-white text-black rounded shadow-lg p-2"
                     sideOffset={5}
                   >
                     {/* Move Node Option */}
                     <DropdownMenu.Item
-                      className="p-2 cursor-pointer hover:bg-gray-700 rounded"
+                      className="p-2 rounded border border-transparent focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white"
                       onClick={() => {
                         setCurrentNode(node);
                         setIsMoveDialogOpen(true);
                       }}
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
                     >
                       Move
                     </DropdownMenu.Item>
 
                     {/* Edit Node Option */}
                     <DropdownMenu.Item
-                      className="p-2 cursor-pointer hover:bg-gray-700 rounded"
+                      className="p-2 rounded border border-transparent focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white"
                       onClick={() => openEditDialog(node)}
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
                     >
                       Edit
                     </DropdownMenu.Item>
 
                     {/* Remove Node Option */}
                     <DropdownMenu.Item
-                      className="p-2 cursor-pointer hover:bg-red-700 rounded text-red-500"
+                      className="p-2 rounded border border-transparent text-red-500 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white"
                       onClick={() => {
                         if (window.confirm(`Are you sure you want to remove "${node.title}"?`)) {
                           removeNode(node.id);
                         }
                       }}
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
                     >
                       Remove
                     </DropdownMenu.Item>
@@ -388,7 +391,7 @@ const App: React.FC = () => {
       onClick={() => setIsMoveDialogOpen(false)} // Close dialog on backdrop click
     >
       <div
-        className="bg-gray-800 text-white p-6 rounded shadow-lg w-96"
+        className="bg-white text-black p-6 rounded shadow-lg w-96"
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
       >
         <h2 className="text-lg font-bold mb-4">Move</h2>
@@ -397,13 +400,13 @@ const App: React.FC = () => {
         <div className="mb-4">
           <label className="block font-medium mb-2">Parent *</label>
           <select
-            className="w-full bg-gray-700 border border-gray-600 text-white p-2 rounded"
+            className="w-full bg-white border border-gray-300 text-black p-2 rounded"
             value={selectedParentId || ""}
             onChange={(e) => setSelectedParentId(e.target.value)}
           >
             <option value="" disabled>Select a parent</option>
             {flattenTree(tree)
-              .filter(({ node }) => node.id !== currentNode.id) // Exclude current node
+              .filter(({ node }) => node.id !== currentNode?.id) // Exclude current node
               .map(({ node }) => (
                 <option key={node.id} value={node.id}>
                   {node.title}
@@ -412,11 +415,12 @@ const App: React.FC = () => {
           </select>
         </div>
 
+
         {/* Select Position */}
         <div className="mb-4">
           <label className="block font-medium mb-2">Position *</label>
           <select
-            className="w-full bg-gray-700 border border-gray-600 text-white p-2 rounded"
+            className="w-full bg-white border border-gray-300 text-black p-2 rounded"
             value={selectedPosition}
             onChange={(e) => setSelectedPosition(Number(e.target.value))}
             disabled={!selectedParentId} // Disable until a parent is selected
@@ -475,7 +479,7 @@ const App: React.FC = () => {
         onClick={() => setIsEditDialogOpen(false)} // Close dialog on backdrop click
       >
         <div
-          className="bg-gray-800 text-white p-6 rounded shadow-lg w-96"
+          className="bg-white text-black p-6 rounded shadow-lg w-96"
           onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
         >
           <h2 className="text-lg font-bold mb-4">Edit Node</h2>
@@ -528,7 +532,7 @@ const App: React.FC = () => {
         </div>
       </div>
     )}
-    
+
     {/* Drag and Drop Context */}
     <DragDropContext onDragEnd={handleDragEnd}>
       <Droppable droppableId="tree" type="TREE">
