@@ -19,8 +19,12 @@ Card.displayName = "Card";
 
 export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
 
-export const CardHeader: React.FC<CardHeaderProps> = ({ children, className, ...props }) => {
-  const baseStyles = "flex items-center mb-4 border-b pb-2";
+export const CardHeader: React.FC<CardHeaderProps> = ({
+  children,
+  className,
+  ...props
+}) => {
+  const baseStyles = "flex items-center"; // Removed mb-4, border-b, pb-2
 
   return (
     <div className={clsx(baseStyles, className)} {...props}>

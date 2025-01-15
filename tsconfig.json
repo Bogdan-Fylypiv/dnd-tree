@@ -8,7 +8,11 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".", // Ensures paths are relative to the project root
+    "paths": {
+      "@/*": ["src/*"] // Alias "@" for your "src" folder
+    },
   },
   "include": ["src"]
 }
