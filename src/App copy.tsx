@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -105,6 +106,24 @@ const App: React.FC = () => {
   const [currentNode, setCurrentNode] = useState<TreeNode | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<number>(0);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editedNodeName, setEditedNodeName] = useState<string>("");
+  const [editedNodeColor, setEditedNodeColor] = useState<string>("blue");
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true; // Set to true on mount
+
+    return () => {
+      isMounted.current = false; // Set to false on unmount
+    };
+  }, []);
+
+  const safeSetTree = (newTree: TreeNode[]) => {
+    if (isMounted.current) {
+      setTree(newTree); // Update state only if the component is mounted
+    }
+  };
 
   const flattenTree = (
     nodes: TreeNode[] = [],
@@ -240,6 +259,39 @@ const App: React.FC = () => {
     setNewNodeName(""); // Clear input
   };
 
+  const openEditDialog = (node: TreeNode) => {
+    setCurrentNode(node);
+    setEditedNodeName(node.title);
+    setEditedNodeColor(node.color || "blue");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateNode = () => {
+    if (!currentNode) return;
+  
+    const updateNode = (nodes: TreeNode[]): TreeNode[] =>
+      nodes.map((node) =>
+        node.id === currentNode.id
+          ? { ...node, title: editedNodeName, color: editedNodeColor }
+          : { ...node, children: updateNode(node.children) }
+      );
+  
+    setTree(updateNode(tree));
+    setIsEditDialogOpen(false);
+  };
+
+  const removeNode = (nodeId: string) => {
+    const deleteNode = (nodes: TreeNode[]): TreeNode[] =>
+      nodes
+        .filter((node) => node.id !== nodeId) // Remove the node
+        .map((node) => ({
+          ...node,
+          children: deleteNode(node.children), // Recurse into children
+        }));
+
+    safeSetTree(deleteNode(tree)); // Use the safe state updater
+  };
+
   const renderTree = () => {
     const flatTree = flattenTree(tree);
   
@@ -284,18 +336,42 @@ const App: React.FC = () => {
                     </Button>
                   </DropdownMenu.Trigger>
                   <DropdownMenu.Content
-                    className="bg-gray-800 text-white rounded shadow-lg p-2"
+                    className="bg-white text-black rounded shadow-lg p-2"
                     sideOffset={5}
                   >
+                    {/* Move Node Option */}
                     <DropdownMenu.Item
-                      className="p-2 cursor-pointer hover:bg-gray-700 rounded"
+                      className="p-2 rounded border border-transparent focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white"
                       onClick={() => {
                         setCurrentNode(node);
                         setIsMoveDialogOpen(true);
                       }}
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
                     >
                       Move
-                  </DropdownMenu.Item>                  
+                    </DropdownMenu.Item>
+
+                    {/* Edit Node Option */}
+                    <DropdownMenu.Item
+                      className="p-2 rounded border border-transparent focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white"
+                      onClick={() => openEditDialog(node)}
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
+                    >
+                      Edit
+                    </DropdownMenu.Item>
+
+                    {/* Remove Node Option */}
+                    <DropdownMenu.Item
+                      className="p-2 rounded border border-transparent text-red-500 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 focus-visible:ring-offset-white"
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to remove "${node.title}"?`)) {
+                          removeNode(node.id);
+                        }
+                      }}
+                      style={{ pointerEvents: "auto", cursor: "pointer" }}
+                    >
+                      Remove
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </CardHeader>
@@ -309,91 +385,178 @@ const App: React.FC = () => {
   return (
   <div>
     {/* Move Dialog */}
-    {isMoveDialogOpen && currentNode && (
+{isMoveDialogOpen && currentNode && (
+  <div
+    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    onClick={() => setIsMoveDialogOpen(false)} // Close dialog on backdrop click
+  >
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={() => setIsMoveDialogOpen(false)} // Close dialog on backdrop click
+      className="bg-white text-black p-6 rounded shadow-lg w-96"
+      onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
     >
-      <div
-        className="bg-gray-800 text-white p-6 rounded shadow-lg w-96"
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
-      >
-        <h2 className="text-lg font-bold mb-4">Move</h2>
+      <h2 className="text-lg font-bold mb-4">Move</h2>
 
-        {/* Select Parent Node */}
-        <div className="mb-4">
-          <label className="block font-medium mb-2">Parent *</label>
-          <select
-            className="w-full bg-gray-700 border border-gray-600 text-white p-2 rounded"
-            value={selectedParentId || ""}
-            onChange={(e) => setSelectedParentId(e.target.value)}
-          >
-            <option value="" disabled>Select a parent</option>
-            {flattenTree(tree)
-              .filter(({ node }) => node.id !== currentNode.id) // Exclude current node
-              .map(({ node }) => (
-                <option key={node.id} value={node.id}>
-                  {node.title}
+      {/* Select Parent Node */}
+      <div className="mb-4">
+        <label className="block font-medium mb-2">Parent *</label>
+        <select
+          className="w-full bg-white border border-gray-300 text-black p-2 rounded"
+          value={selectedParentId || ""}
+          onChange={(e) => setSelectedParentId(e.target.value || null)}
+        >
+          <option value="" disabled>Select a parent</option>
+          <option value="root">Root</option>
+          {flattenTree(tree)
+            .filter(({ node }) => node.id !== currentNode?.id) // Exclude current node
+            .map(({ node }) => (
+              <option key={node.id} value={node.id}>
+                {node.title}
+              </option>
+            ))}
+        </select>
+      </div>
+
+      {/* Select Position */}
+      <div className="mb-4">
+        <label className="block font-medium mb-2">Position *</label>
+        <select
+          className="w-full bg-white border border-gray-300 text-black p-2 rounded"
+          value={selectedPosition}
+          onChange={(e) => setSelectedPosition(Number(e.target.value))}
+          disabled={!selectedParentId && selectedParentId !== "root"} // Disable until a parent is selected
+        >
+          {(() => {
+            let positionCount = 0;
+
+            if (selectedParentId === "root") {
+              // Count root-level nodes
+              const rootNodes = tree.filter((node) => node.id !== currentNode?.id); // Exclude current node
+              positionCount = rootNodes.length;
+
+              // Generate position options
+              return [...Array(positionCount + 1)].map((_, idx) => (
+                <option key={idx} value={idx}>
+                  {idx + 1} {idx === 0 ? "(first)" : idx === positionCount ? "(last)" : ""}
                 </option>
-              ))}
-          </select>
-        </div>
-
-        {/* Select Position */}
-        <div className="mb-4">
-          <label className="block font-medium mb-2">Position *</label>
-          <select
-            className="w-full bg-gray-700 border border-gray-600 text-white p-2 rounded"
-            value={selectedPosition}
-            onChange={(e) => setSelectedPosition(Number(e.target.value))}
-            disabled={!selectedParentId} // Disable until a parent is selected
-          >
-            {(() => {
+              ));
+            } else {
               const selectedParent = flattenTree(tree).find(
                 ({ node }) => node.id === selectedParentId
               )?.node;
 
-              const siblingCount = selectedParent
-                ? selectedParent.children.length
-                : tree.length; // Use root level if no parent
+              if (selectedParent) {
+                // Exclude the current node from the list of siblings
+                const siblingCount = selectedParent.children.filter(
+                  (child) => child.id !== currentNode?.id
+                ).length;
 
-              return [...Array(siblingCount + 1)].map((_, idx) => (
-                <option key={idx} value={idx}>
-                  {idx + 1} {idx === 0 ? "(first)" : idx === siblingCount ? "(last)" : ""}
-                </option>
-              ));
-            })()}
-          </select>
-        </div>
+                // Generate position options
+                return [...Array(siblingCount + 1)].map((_, idx) => (
+                  <option key={idx} value={idx}>
+                    {idx + 1} {idx === 0 ? "(first)" : idx === siblingCount ? "(last)" : ""}
+                  </option>
+                ));
+              }
+            }
+            return null;
+          })()}
+        </select>
+      </div>
 
-        {/* Dialog Buttons */}
-        <div className="flex justify-end gap-4">
-          <button
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
-            onClick={() => setIsMoveDialogOpen(false)}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
-            onClick={() => {
-              if (!selectedParentId) return alert("Please select a parent node");
-              const updatedTree = moveNode(
-                tree,
-                currentNode.id,
-                selectedParentId,
-                selectedPosition
-              );
-              setTree(updatedTree);
-              setIsMoveDialogOpen(false);
-            }}
-          >
-            Move
-          </button>
-        </div>
+      {/* Dialog Buttons */}
+      <div className="flex justify-end gap-4">
+        <button
+          className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+          onClick={() => setIsMoveDialogOpen(false)}
+        >
+          Cancel
+        </button>
+        <button
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+          onClick={() => {
+            if (!selectedParentId && selectedParentId !== "root") {
+              alert("Please select a parent node");
+              return;
+            }
+
+            const updatedTree = moveNode(
+              tree,
+              currentNode.id,
+              selectedParentId === "root" ? null : selectedParentId,
+              selectedPosition
+            );
+
+            setTree(updatedTree);
+            setIsMoveDialogOpen(false);
+          }}
+        >
+          Move
+        </button>
       </div>
     </div>
-  )}
+  </div>
+)}
+
+{/* Edit Dialog */}
+{isEditDialogOpen && currentNode && (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        onClick={() => setIsEditDialogOpen(false)} // Close dialog on backdrop click
+      >
+        <div
+          className="bg-white text-black p-6 rounded shadow-lg w-96"
+          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
+        >
+          <h2 className="text-lg font-bold mb-4">Edit Node</h2>
+
+          {/* Edit Node Name */}
+          <div className="mb-4">
+            <label className="block font-medium mb-2">Node Name</label>
+            <input
+              type="text"
+              value={editedNodeName}
+              onChange={(e) => setEditedNodeName(e.target.value)}
+              placeholder="Enter node name"
+              className="mt-2 p-2 border rounded w-full bg-white text-black"
+            />
+          </div>
+
+          {/* Edit Node Color */}
+          <div className="mb-4">
+            <label className="block font-medium mb-2">Select Node Color</label>
+            <div className="mt-2 grid grid-cols-4 gap-2">
+              {colors.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setEditedNodeColor(color)}
+                  className={`p-2 rounded ${colorClassMap[color]} text-white ${
+                    editedNodeColor === color ? "ring-2 ring-offset-2 ring-gray-800" : ""
+                  }`}
+                >
+                  {color.charAt(0).toUpperCase() + color.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dialog Buttons */}
+          <div className="flex justify-end gap-4">
+            <button
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+              onClick={() => setIsEditDialogOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+              onClick={handleUpdateNode}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Drag and Drop Context */}
     <DragDropContext onDragEnd={handleDragEnd}>

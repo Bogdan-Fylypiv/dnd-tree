@@ -385,92 +385,117 @@ const App: React.FC = () => {
   return (
   <div>
     {/* Move Dialog */}
-    {isMoveDialogOpen && currentNode && (
+{isMoveDialogOpen && currentNode && (
+  <div
+    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    onClick={() => setIsMoveDialogOpen(false)} // Close dialog on backdrop click
+  >
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={() => setIsMoveDialogOpen(false)} // Close dialog on backdrop click
+      className="bg-white text-black p-6 rounded shadow-lg w-96"
+      onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
     >
-      <div
-        className="bg-white text-black p-6 rounded shadow-lg w-96"
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
-      >
-        <h2 className="text-lg font-bold mb-4">Move</h2>
+      <h2 className="text-lg font-bold mb-4">Move</h2>
 
-        {/* Select Parent Node */}
-        <div className="mb-4">
-          <label className="block font-medium mb-2">Parent *</label>
-          <select
-            className="w-full bg-white border border-gray-300 text-black p-2 rounded"
-            value={selectedParentId || ""}
-            onChange={(e) => setSelectedParentId(e.target.value)}
-          >
-            <option value="" disabled>Select a parent</option>
-            {flattenTree(tree)
-              .filter(({ node }) => node.id !== currentNode?.id) // Exclude current node
-              .map(({ node }) => (
-                <option key={node.id} value={node.id}>
-                  {node.title}
+      {/* Select Parent Node */}
+      <div className="mb-4">
+        <label className="block font-medium mb-2">Parent *</label>
+        <select
+          className="w-full bg-white border border-gray-300 text-black p-2 rounded"
+          value={selectedParentId || ""}
+          onChange={(e) => setSelectedParentId(e.target.value || null)}
+        >
+          <option value="" disabled>Select a parent</option>
+          <option value="root">Root</option>
+          {flattenTree(tree)
+            .filter(({ node }) => node.id !== currentNode?.id) // Exclude current node
+            .map(({ node }) => (
+              <option key={node.id} value={node.id}>
+                {node.title}
+              </option>
+            ))}
+        </select>
+      </div>
+
+      {/* Select Position */}
+      <div className="mb-4">
+        <label className="block font-medium mb-2">Position *</label>
+        <select
+          className="w-full bg-white border border-gray-300 text-black p-2 rounded"
+          value={selectedPosition}
+          onChange={(e) => setSelectedPosition(Number(e.target.value))}
+          disabled={!selectedParentId && selectedParentId !== "root"} // Disable until a parent is selected
+        >
+          {(() => {
+            let positionCount = 0;
+
+            if (selectedParentId === "root") {
+              // Count root-level nodes
+              const rootNodes = tree.filter((node) => node.id !== currentNode?.id); // Exclude current node
+              positionCount = rootNodes.length;
+
+              // Generate position options
+              return [...Array(positionCount + 1)].map((_, idx) => (
+                <option key={idx} value={idx}>
+                  {idx + 1} {idx === 0 ? "(first)" : idx === positionCount ? "(last)" : ""}
                 </option>
-              ))}
-          </select>
-        </div>
-
-
-        {/* Select Position */}
-        <div className="mb-4">
-          <label className="block font-medium mb-2">Position *</label>
-          <select
-            className="w-full bg-white border border-gray-300 text-black p-2 rounded"
-            value={selectedPosition}
-            onChange={(e) => setSelectedPosition(Number(e.target.value))}
-            disabled={!selectedParentId} // Disable until a parent is selected
-          >
-            {(() => {
+              ));
+            } else {
               const selectedParent = flattenTree(tree).find(
                 ({ node }) => node.id === selectedParentId
               )?.node;
 
-              const siblingCount = selectedParent
-                ? selectedParent.children.length
-                : tree.length; // Use root level if no parent
+              if (selectedParent) {
+                // Exclude the current node from the list of siblings
+                const siblingCount = selectedParent.children.filter(
+                  (child) => child.id !== currentNode?.id
+                ).length;
 
-              return [...Array(siblingCount + 1)].map((_, idx) => (
-                <option key={idx} value={idx}>
-                  {idx + 1} {idx === 0 ? "(first)" : idx === siblingCount ? "(last)" : ""}
-                </option>
-              ));
-            })()}
-          </select>
-        </div>
+                // Generate position options
+                return [...Array(siblingCount + 1)].map((_, idx) => (
+                  <option key={idx} value={idx}>
+                    {idx + 1} {idx === 0 ? "(first)" : idx === siblingCount ? "(last)" : ""}
+                  </option>
+                ));
+              }
+            }
+            return null;
+          })()}
+        </select>
+      </div>
 
-        {/* Dialog Buttons */}
-        <div className="flex justify-end gap-4">
-          <button
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
-            onClick={() => setIsMoveDialogOpen(false)}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
-            onClick={() => {
-              if (!selectedParentId) return alert("Please select a parent node");
-              const updatedTree = moveNode(
-                tree,
-                currentNode.id,
-                selectedParentId,
-                selectedPosition
-              );
-              setTree(updatedTree);
-              setIsMoveDialogOpen(false);
-            }}
-          >
-            Move
-          </button>
-        </div>
+      {/* Dialog Buttons */}
+      <div className="flex justify-end gap-4">
+        <button
+          className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+          onClick={() => setIsMoveDialogOpen(false)}
+        >
+          Cancel
+        </button>
+        <button
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+          onClick={() => {
+            if (!selectedParentId && selectedParentId !== "root") {
+              alert("Please select a parent node");
+              return;
+            }
+
+            const updatedTree = moveNode(
+              tree,
+              currentNode.id,
+              selectedParentId === "root" ? null : selectedParentId,
+              selectedPosition
+            );
+
+            setTree(updatedTree);
+            setIsMoveDialogOpen(false);
+          }}
+        >
+          Move
+        </button>
       </div>
     </div>
-  )}
+  </div>
+)}
 
 {/* Edit Dialog */}
 {isEditDialogOpen && currentNode && (
