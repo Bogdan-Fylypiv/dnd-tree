@@ -15,13 +15,44 @@ import {
   SheetTrigger,
   SheetDescription,
 } from "./components/ui/sheet";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 type TreeNode = {
   id: string;
   title: string;
   children: TreeNode[];
   expanded: boolean;
-  color?: string; // Optional color property
+  color?: string;
+};
+
+const colors: string[] = [
+  "red",
+  "blue",
+  "green",
+  "yellow",
+  "purple",
+  "pink",
+  "indigo",
+  "teal",
+  "orange",
+  "cyan",
+  "lime",
+  "gray",
+];
+
+const colorClassMap: Record<string, string> = {
+  red: "bg-red-500",
+  blue: "bg-blue-500",
+  green: "bg-green-500",
+  yellow: "bg-yellow-500",
+  purple: "bg-purple-500",
+  pink: "bg-pink-500",
+  indigo: "bg-indigo-500",
+  teal: "bg-teal-500",
+  orange: "bg-orange-500",
+  cyan: "bg-cyan-500",
+  lime: "bg-lime-500",
+  gray: "bg-gray-500",
 };
 
 const initialTree: TreeNode[] = [
@@ -69,31 +100,22 @@ const App: React.FC = () => {
   const [newNodeName, setNewNodeName] = useState("");
   const [selectedLocation, setSelectedLocation] = useState<string | null>("root");
   const [selectedColor, setSelectedColor] = useState<string>("blue");
-  const [isSheetOpen, setIsSheetOpen] = useState(false); // Initially false to keep the sheet closed
-
-  const colors = [
-    "red",
-    "blue",
-    "green",
-    "yellow",
-    "purple",
-    "pink",
-    "indigo",
-    "teal",
-    "orange",
-    "cyan",
-    "lime",
-    "gray",
-  ];
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
+  const [currentNode, setCurrentNode] = useState<TreeNode | null>(null);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<number>(0);
 
   const flattenTree = (
-    nodes: TreeNode[],
+    nodes: TreeNode[] = [],
     parentId: string | null = null,
     depth = 0
   ): { node: TreeNode; parentId: string | null; depth: number }[] => {
     return nodes.flatMap((node) => [
       { node, parentId, depth },
-      ...(node.expanded ? flattenTree(node.children, node.id, depth + 1) : []),
+      ...(node.expanded
+        ? flattenTree(node.children, node.id, depth + 1)
+        : []),
     ]);
   };
 
@@ -105,62 +127,75 @@ const App: React.FC = () => {
   ): TreeNode[] => {
     let movedNode: TreeNode | null = null;
 
-    const removeNode = (nodes: TreeNode[]): TreeNode[] => {
-      return nodes
+    // Step 1: Remove the node
+    const removeNode = (nodes: TreeNode[]): TreeNode[] =>
+      nodes
         .filter((node) => {
           if (node.id === sourceId) {
             movedNode = { ...node };
-            return false;
+            return false; // Remove this node
           }
           return true;
         })
-        .map((node) => ({ ...node, children: removeNode(node.children) }));
-    };
+        .map((node) => ({
+          ...node,
+          children: removeNode(node.children), // Recurse into children
+        }));
 
+    const treeWithoutSource = removeNode(tree);
+    if (!movedNode) {
+      throw new Error("moveNode: Unable to locate the node to move");
+    }
+
+    // Step 2: Add the node to the correct location
     const addNode = (nodes: TreeNode[]): TreeNode[] => {
       if (!destinationParentId) {
+        // Add to root level
         const updatedNodes = [...nodes];
-        updatedNodes.splice(destinationIndex, 0, movedNode!);
+        updatedNodes.splice(destinationIndex, 0, movedNode!); // Ensure non-null
         return updatedNodes;
       }
 
       return nodes.map((node) => {
-        if (node.id === destinationParentId && movedNode) {
+        if (node.id === destinationParentId) {
           const updatedChildren = [...node.children];
-          updatedChildren.splice(destinationIndex, 0, movedNode);
+          updatedChildren.splice(destinationIndex, 0, movedNode!); // Ensure non-null
           return { ...node, children: updatedChildren };
         }
-        return { ...node, children: addNode(node.children) };
+        return { ...node, children: addNode(node.children) }; // Recurse
       });
     };
 
-    const treeWithoutSource = removeNode(tree);
-    return addNode(treeWithoutSource);
+    return addNode(treeWithoutSource); // Return updated tree
   };
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
-
     if (!destination) return;
 
     const flatTree = flattenTree(tree);
-
     const sourceNodeData = flatTree[source.index];
     const destinationNodeData = flatTree[destination.index];
 
-    const sameParent =
-      sourceNodeData.parentId === destinationNodeData.parentId;
+    if (!sourceNodeData || !destinationNodeData) {
+      console.error("Error: Missing source or destination node data");
+      return;
+    }
 
-    const destinationIndex = sameParent
-      ? flatTree
-          .filter((item) => item.parentId === destinationNodeData.parentId)
-          .findIndex((item) => item.node.id === destinationNodeData.node.id)
-      : destination.index;
+    const destinationParentId =
+      destinationNodeData.parentId || (destinationNodeData.depth === 0 ? null : destinationNodeData.node.id);
+
+    const destinationSiblings = flatTree.filter(
+      (item) => item.parentId === destinationParentId
+    );
+    const destinationIndex = destinationSiblings.findIndex(
+      (item) => item.node.id === destinationNodeData.node.id
+    );
 
     const updatedTree = moveNode(
       tree,
       sourceNodeData.node.id,
-      destinationNodeData.parentId,
+      destinationParentId,
       destinationIndex
     );
 
@@ -190,7 +225,7 @@ const App: React.FC = () => {
     };
 
     if (selectedLocation === "root") {
-      setTree([...tree, newNode]);
+      setTree([...tree, newNode]); // Add as a root node
     } else {
       const addNewNode = (nodes: TreeNode[]): TreeNode[] =>
         nodes.map((node) =>
@@ -202,12 +237,12 @@ const App: React.FC = () => {
       setTree(addNewNode(tree));
     }
 
-    setNewNodeName(""); // Reset the node name input field
+    setNewNodeName(""); // Clear input
   };
 
   const renderTree = () => {
     const flatTree = flattenTree(tree);
-
+  
     return flatTree.map(({ node, depth }, index) => (
       <Draggable key={node.id} draggableId={node.id} index={index}>
         {(provided) => (
@@ -222,21 +257,47 @@ const App: React.FC = () => {
             className="mb-2"
           >
             <Card>
-              <CardHeader className="flex items-center gap-2">
-                {node.children.length > 0 && (
-                  <Button
-                    size="icon"
-                    isIconOnly={true}
-                    onClick={() => toggleNode(node.id)}
-                    variant="ghost"
+              <CardHeader className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {node.children.length > 0 && (
+                    <Button
+                      size="icon"
+                      isIconOnly={true}
+                      onClick={() => toggleNode(node.id)}
+                      variant="ghost"
+                    >
+                      {node.expanded ? "▼" : "▶"}
+                    </Button>
+                  )}
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      colorClassMap[node.color || "gray"]
+                    }`}
+                  ></div>
+                  <CardTitle>{node.title}</CardTitle>
+                </div>
+                {/* Dropdown Menu */}
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <Button size="icon" variant="ghost">
+                      ⋮
+                    </Button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content
+                    className="bg-gray-800 text-white rounded shadow-lg p-2"
+                    sideOffset={5}
                   >
-                    {node.expanded ? "▼" : "▶"}
-                  </Button>
-                )}
-                <div
-                  className={`w-3 h-3 rounded-full bg-${node.color || "gray"}-500`}
-                ></div>
-                <CardTitle>{node.title}</CardTitle>
+                    <DropdownMenu.Item
+                      className="p-2 cursor-pointer hover:bg-gray-700 rounded"
+                      onClick={() => {
+                        setCurrentNode(node);
+                        setIsMoveDialogOpen(true);
+                      }}
+                    >
+                      Move
+                  </DropdownMenu.Item>                  
+                  </DropdownMenu.Content>
+                </DropdownMenu.Root>
               </CardHeader>
             </Card>
           </div>
@@ -246,92 +307,186 @@ const App: React.FC = () => {
   };
 
   return (
-    <div>
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="tree" type="TREE">
-          {(provided) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className="p-4 bg-gray-50 rounded-md w-[300px] mx-auto"
-            >
-              {renderTree()}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+  <div>
+    {/* Move Dialog */}
+    {isMoveDialogOpen && currentNode && (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={() => setIsMoveDialogOpen(false)} // Close dialog on backdrop click
+    >
+      <div
+        className="bg-gray-800 text-white p-6 rounded shadow-lg w-96"
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside dialog
+      >
+        <h2 className="text-lg font-bold mb-4">Move</h2>
 
-      <div className="mt-4">
-        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetTrigger asChild>
-            <Button variant="default" onClick={() => setIsSheetOpen(true)}>
-              Add New Node
-            </Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>Add New Node</SheetTitle>
-              <SheetDescription>
-                Create a new node by providing its name and selecting a location.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="mt-4">
-              <div>
-                <label className="block font-medium">Node Name</label>
-                <input
-                  type="text"
-                  value={newNodeName}
-                  onChange={(e) => setNewNodeName(e.target.value)}
-                  placeholder="Enter node name"
-                  className="mt-2 p-2 border rounded w-full bg-white text-black"
-                />
-              </div>
-              <div className="mt-4">
-                <label className="block font-medium">Select Button Color</label>
-                <div className="mt-2 grid grid-cols-4 gap-2">
-                  {colors.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setSelectedColor(color)}
-                      className={`p-2 rounded bg-${color}-500 text-white ${
-                        selectedColor === color ? "ring-2 ring-offset-2 ring-gray-800" : ""
-                      }`}
-                    >
-                      {color}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mt-4">
-                <label className="block font-medium">Save Location</label>
-                <select
-                  value={selectedLocation || ""}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="mt-2 p-2 border rounded w-full bg-white text-black"
-                >
-                  <option value="root">Add as Root Node</option>
-                  {flattenTree(tree).map(({ node }) => (
-                    <option key={node.id} value={node.id}>
-                      {node.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex justify-end gap-4 mt-6">
-                <Button variant="ghost" onClick={() => setIsSheetOpen(false)}>
-                  Close
-                </Button>
-                <Button variant="default" onClick={handleAddNode}>
-                  Add Node
-                </Button>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+        {/* Select Parent Node */}
+        <div className="mb-4">
+          <label className="block font-medium mb-2">Parent *</label>
+          <select
+            className="w-full bg-gray-700 border border-gray-600 text-white p-2 rounded"
+            value={selectedParentId || ""}
+            onChange={(e) => setSelectedParentId(e.target.value)}
+          >
+            <option value="" disabled>Select a parent</option>
+            {flattenTree(tree)
+              .filter(({ node }) => node.id !== currentNode.id) // Exclude current node
+              .map(({ node }) => (
+                <option key={node.id} value={node.id}>
+                  {node.title}
+                </option>
+              ))}
+          </select>
+        </div>
+
+        {/* Select Position */}
+        <div className="mb-4">
+          <label className="block font-medium mb-2">Position *</label>
+          <select
+            className="w-full bg-gray-700 border border-gray-600 text-white p-2 rounded"
+            value={selectedPosition}
+            onChange={(e) => setSelectedPosition(Number(e.target.value))}
+            disabled={!selectedParentId} // Disable until a parent is selected
+          >
+            {(() => {
+              const selectedParent = flattenTree(tree).find(
+                ({ node }) => node.id === selectedParentId
+              )?.node;
+
+              const siblingCount = selectedParent
+                ? selectedParent.children.length
+                : tree.length; // Use root level if no parent
+
+              return [...Array(siblingCount + 1)].map((_, idx) => (
+                <option key={idx} value={idx}>
+                  {idx + 1} {idx === 0 ? "(first)" : idx === siblingCount ? "(last)" : ""}
+                </option>
+              ));
+            })()}
+          </select>
+        </div>
+
+        {/* Dialog Buttons */}
+        <div className="flex justify-end gap-4">
+          <button
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+            onClick={() => setIsMoveDialogOpen(false)}
+          >
+            Cancel
+          </button>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500"
+            onClick={() => {
+              if (!selectedParentId) return alert("Please select a parent node");
+              const updatedTree = moveNode(
+                tree,
+                currentNode.id,
+                selectedParentId,
+                selectedPosition
+              );
+              setTree(updatedTree);
+              setIsMoveDialogOpen(false);
+            }}
+          >
+            Move
+          </button>
+        </div>
       </div>
     </div>
-  );
+  )}
+
+    {/* Drag and Drop Context */}
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <Droppable droppableId="tree" type="TREE">
+        {(provided) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="p-4 bg-gray-50 rounded-md w-[300px] mx-auto"
+          >
+            {renderTree()}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    </DragDropContext>
+
+    {/* Add New Node Sheet */}
+    <div className="mt-4">
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetTrigger asChild>
+          <Button variant="default" onClick={() => setIsSheetOpen(true)}>
+            Add New Node
+          </Button>
+        </SheetTrigger>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Add New Button Action</SheetTitle>
+            <SheetDescription>
+              Create a new button action by filling out this form. Click add
+              when you're done.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            <div>
+              <label className="block font-medium">Button Name</label>
+              <input
+                type="text"
+                value={newNodeName}
+                onChange={(e) => setNewNodeName(e.target.value)}
+                placeholder="Enter button name"
+                className="mt-2 p-2 border rounded w-full bg-white text-black"
+              />
+            </div>
+            <div className="mt-4">
+              <label className="block font-medium">Select Button Color</label>
+              <div className="mt-2 grid grid-cols-4 gap-2">
+                {colors.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setSelectedColor(color)}
+                    className={`p-2 rounded ${colorClassMap[color]} text-white ${
+                      selectedColor === color
+                        ? "ring-2 ring-offset-2 ring-gray-800"
+                        : ""
+                    }`}
+                  >
+                    {color.charAt(0).toUpperCase() + color.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4">
+              <label className="block font-medium">Save Location</label>
+              <select
+                value={selectedLocation || ""}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="mt-2 p-2 border rounded w-full bg-white text-black"
+              >
+                <option value="">Select where to save</option>
+                <option value="root">Add as Root Node</option>
+                {flattenTree(tree).map(({ node }) => (
+                  <option key={node.id} value={node.id}>
+                    {node.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-4 mt-6">
+              <Button variant="ghost" onClick={() => setIsSheetOpen(false)}>
+                Close
+              </Button>
+              <Button variant="default" onClick={handleAddNode}>
+                Add Action
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  </div>
+);
+
 };
 
 export default App;
