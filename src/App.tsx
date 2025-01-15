@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   DragDropContext,
   Droppable,
@@ -105,6 +106,21 @@ const App: React.FC = () => {
   const [currentNode, setCurrentNode] = useState<TreeNode | null>(null);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<number>(0);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true; // Set to true on mount
+
+    return () => {
+      isMounted.current = false; // Set to false on unmount
+    };
+  }, []);
+
+  const safeSetTree = (newTree: TreeNode[]) => {
+    if (isMounted.current) {
+      setTree(newTree); // Update state only if the component is mounted
+    }
+  };
 
   const flattenTree = (
     nodes: TreeNode[] = [],
@@ -240,6 +256,18 @@ const App: React.FC = () => {
     setNewNodeName(""); // Clear input
   };
 
+  const removeNode = (nodeId: string) => {
+    const deleteNode = (nodes: TreeNode[]): TreeNode[] =>
+      nodes
+        .filter((node) => node.id !== nodeId) // Remove the node
+        .map((node) => ({
+          ...node,
+          children: deleteNode(node.children), // Recurse into children
+        }));
+
+    safeSetTree(deleteNode(tree)); // Use the safe state updater
+  };
+
   const renderTree = () => {
     const flatTree = flattenTree(tree);
   
@@ -287,6 +315,7 @@ const App: React.FC = () => {
                     className="bg-gray-800 text-white rounded shadow-lg p-2"
                     sideOffset={5}
                   >
+                    {/* Move Node Option */}
                     <DropdownMenu.Item
                       className="p-2 cursor-pointer hover:bg-gray-700 rounded"
                       onClick={() => {
@@ -295,7 +324,19 @@ const App: React.FC = () => {
                       }}
                     >
                       Move
-                  </DropdownMenu.Item>                  
+                    </DropdownMenu.Item>
+
+                    {/* Remove Node Option */}
+                    <DropdownMenu.Item
+                      className="p-2 cursor-pointer hover:bg-red-700 rounded text-red-500"
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to remove "${node.title}"?`)) {
+                          removeNode(node.id);
+                        }
+                      }}
+                    >
+                      Remove
+                    </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Root>
               </CardHeader>
