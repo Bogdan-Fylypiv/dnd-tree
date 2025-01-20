@@ -59,20 +59,20 @@ const colorClassMap: Record<string, string> = {
 const initialTree: TreeNode[] = [
   {
     id: "1",
-    title: "Root Node 1",
+    title: "1",
     expanded: true,
     color: "blue",
     children: [
       {
         id: "2",
-        title: "Child Node 1.1",
+        title: "2",
         expanded: true,
         color: "red",
         children: [],
       },
       {
         id: "3",
-        title: "Child Node 1.2",
+        title: "3",
         expanded: true,
         color: "green",
         children: [],
@@ -81,13 +81,13 @@ const initialTree: TreeNode[] = [
   },
   {
     id: "4",
-    title: "Root Node 2",
+    title: "4",
     expanded: true,
     color: "purple",
     children: [
       {
         id: "5",
-        title: "Child Node 2.1",
+        title: "5",
         expanded: true,
         color: "orange",
         children: [],
@@ -201,15 +201,32 @@ const App: React.FC = () => {
       return;
     }
 
-    const destinationParentId =
-      destinationNodeData.parentId || (destinationNodeData.depth === 0 ? null : destinationNodeData.node.id);
+    console.warn("source: " + sourceNodeData.node.id + " destination: " + destinationNodeData.node.id);
+
+    var destinationParentId = "";
+    if(destinationNodeData.node.expanded && destinationNodeData.node.children.length > 0)
+      destinationParentId = destinationNodeData.node.id;
+    else
+      destinationParentId = destinationNodeData.parentId || (destinationNodeData.depth === 0 ? "" : destinationNodeData.node.id);
+
+    if(destinationParentId === null && destinationNodeData.node.expanded && destinationNodeData.node.children.length > 0)
+      destinationParentId = destinationNodeData.node.id;
+    console.warn("destinationParentId: " + destinationParentId);
 
     const destinationSiblings = flatTree.filter(
       (item) => item.parentId === destinationParentId
     );
-    const destinationIndex = destinationSiblings.findIndex(
+    if(destinationSiblings.length > 0){
+      console.warn("destinationFirstSibling: " + destinationSiblings[0].node.id);
+    }
+
+    const destinationIndex = destinationSiblings.length > 1 ? destinationSiblings.findIndex(
       (item) => item.node.id === destinationNodeData.node.id
-    );
+    ) :
+    destinationSiblings.findIndex(
+      (item) => item.node.id === destinationNodeData.node.id
+    ) + 1;
+    console.warn("destinationIndexWithinSiblings: " + destinationIndex);
 
     const updatedTree = moveNode(
       tree,
